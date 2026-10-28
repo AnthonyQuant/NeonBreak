@@ -1,0 +1,22 @@
+NeonBreak/
+├── main.py                  # Application entry point
+├── src/                     # Core engine package
+│   ├── ball.py              # Sub-stepped ball physics & trajectory prediction
+│   ├── brick.py             # Brick hierarchy & durability logic
+│   ├── config.py            # Global constants, paths, & palette definitions
+│   ├── database.py          # SQLite manager for scores & lifetime stats
+│   ├── game.py              # Central game loop & state coordinator
+│   ├── paddle.py            # Paddle movement, power-up timers, & laser firing
+│   ├── particles.py         # Particle emitters & floating score text
+│   ├── powerups.py          # Power-up capsules & laser entity physics
+│   ├── sounds.py            # In-memory procedural synth & audio manager
+│   └── states.py            # Enums for GameState and GameMode
+├── assets/                  # Binary visual & typography assets
+│   └── fonts/               # Custom Orbitron & Rajdhani TTF fonts
+├── data/                    # JSON schematics & SQLite database storage
+│   ├── levels.json          # Level grid definitions
+│   └── records.db           # Persistent SQLite database
+└── tests/                   # Headless automated unit test suite
+├── test_physics.py      # Wall reflections & sub-step distance bounds
+├── test_gameplay.py     # Gameplay state machine & durability tests
+└── test_edge_cases.py   # Zero-dt safety & boundary clamping tests

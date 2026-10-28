@@ -1,0 +1,44 @@
+[
+  {
+    "level_id": 1,
+    "name": "Genesis",
+    "cols": 9,
+    "brick_width": 80.0,
+    "brick_height": 24.0,
+    "padding": 10.0,
+    "grid": [
+      "S S A A M A A S S",
+      "A S S E S E S S A",
+      "S S E S M S E S S",
+      "S S S S S S S S S"
+    ]
+  },
+  {
+    "level_id": 2,
+    "name": "Fortress",
+    "cols": 9,
+    "brick_width": 80.0,
+    "brick_height": 24.0,
+    "padding": 10.0,
+    "grid": [
+      "U A A A M A A A U",
+      "A S S E S E S S A",
+      "A S A A A A A S A",
+      "S S S S S S S S S"
+    ]
+  },
+  {
+    "level_id": 3,
+    "name": "Precision Gauntlet",
+    "cols": 9,
+    "brick_width": 80.0,
+    "brick_height": 24.0,
+    "padding": 10.0,
+    "grid": [
+      "U U A E M E A U U",
+      "A A S A A A S A A",
+      "E S M S E S M S E",
+      "A A A A A A A A A"
+    ]
+  }
+]
