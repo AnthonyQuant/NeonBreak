@@ -39,7 +39,7 @@ Unlike basic tutorial clones, **NeonBreak** uses sub-stepped trajectory physics 
 - **Dual Game Modes**:
   - **Classic Mode**: 3 lives, score multiplier (1.0x), and interactive trajectory guide preview.
   - **Precision Mode**: 1 life, enhanced score multiplier (1.5x), and hidden trajectory guide for high-risk play.
-- **SQLite Data Persistence**: Tracks top 5 local leaderboard records per mode and cumulative lifetime brick destruction statistics in `data/records.db`.
+- **SQLite Data Persistence**: Tracks top 5 local leaderboard records per mode and cumulative lifetime brick destruction statistics in user-writable application data directories.
 - **Procedural Sound Engine**: In-memory WAV waveform synthesizer for dynamic SFX and integrated background music streaming.
 - **Automated Test Pipeline**: Headless `unittest` suite testing physics reflections, gameplay lifecycles, and edge-case boundary conditions.
 
@@ -67,11 +67,11 @@ Where `d_max = 4.0` pixels. Each sub-step updates position by `dt_sub = dt / N` 
 ### 2. Continuous Paddle Bounce Angle Deflection
 Paddle collision response converts the horizontal hit location into a specular bounce angle bounded between -60 degrees and +60 degrees relative to the paddle normal:
 
-`offset = clamp((x_ball - x_paddle_center) / (0.5 * w_paddle), -1.0, 1.0)`
-`theta_bounce = -pi/2 + (offset * pi/3)`
+`offset = clamp((x_ball - x_paddle_center) / (0.5 * w_paddle), -1.0, 1.0)`  
+`theta_bounce = -pi/2 + (offset * pi/3)`  
 
-`v_x = speed * cos(theta_bounce)`
-`v_y = speed * sin(theta_bounce)`
+`v_x = speed * cos(theta_bounce)`  
+`v_y = speed * sin(theta_bounce)`  
 
 ---
 
@@ -79,17 +79,10 @@ Paddle collision response converts the horizontal hit location into a specular b
 
 ```text
 NeonBreak/
-├── .venv/                   # Virtual environment
 ├── assets/                  # Binary visual & typography assets
 │   └── fonts/               # Custom Orbitron & Rajdhani TTF fonts
-├── build/                   # PyInstaller build files
-├── data/                    # JSON schematics & SQLite database storage
-│   ├── levels.json          # Level grid definitions
-│   └── records.db           # Persistent SQLite database
-├── dist/                    # Compiled distribution folder
-│   └── main/                # Standalone executable directory
-│       ├── _internal/       # Bundled Python dependencies
-│       └── main.exe         # Windows executable game file
+├── data/                    # JSON schematics & default game data
+│   └── levels.json          # Level grid definitions
 ├── src/                     # Core engine package
 │   ├── ball.py              # Sub-stepped physics & trajectory prediction
 │   ├── brick.py             # Brick hierarchy & durability logic
@@ -102,25 +95,31 @@ NeonBreak/
 │   ├── sounds.py            # Procedural synth & audio manager
 │   └── states.py            # Enums for GameState and GameMode
 ├── tests/                   # Headless automated unit test suite
-│   ├── test_edge_cases.py   # Zero-dt safety & boundary clamping tests
-│   ├── test_gameplay.py     # Gameplay state machine & durability tests
+│   ├── test_audio.py        # Audio fallback & volume control tests
+│   ├── test_database.py     # SQLite persistence & isolation tests
+│   ├── test_gameplay.py     # Gameplay lifecycle & durability tests
 │   └── test_physics.py      # Wall reflections & sub-step distance bounds
 ├── main.py                  # Application entry point
 ├── main.spec                # PyInstaller build specification
+├── LICENSE                  # MIT License
 ├── README.md                # Project documentation
-├── requirements.txt         # Project dependencies
-└── structure.txt            # Directory layout reference
+├── requirements.txt         # Runtime dependencies
+└── requirements-dev.txt     # Development & build dependencies
+```
 
-⚙️ Installation & Local Setup
-Prerequisites
-Python 3.10 or higher
+---
 
-Git
+## ⚙️ Installation & Local Setup
 
-Quickstart Command
+### Prerequisites
+- Python 3.10 or higher
+- Git
 
+### Quickstart Commands
+
+```bash
 # 1. Clone repository
-git clone [https://github.com/AnthonyQuant/NeonBreak.git](https://github.com/AnthonyQuant/NeonBreak.git)
+git clone https://github.com/AnthonyQuant/NeonBreak.git
 cd NeonBreak
 
 # 2. Create and activate a virtual environment
@@ -130,33 +129,48 @@ python -m venv .venv
 # On macOS/Linux:
 source .venv/bin/activate
 
-# 3. Install dependencies
+# 3. Install runtime dependencies
 pip install -r requirements.txt
 
 # 4. Run the game
 python main.py
+```
 
-🧪 Automated Testing Suite
-The engine includes headless unit tests built using unittest. The test harness forces Pygame into dummy video mode (SDL_VIDEODRIVER=dummy) so tests execute rapidly without spawning GUI windows.
+---
+
+## 🧪 Automated Testing Suite
+
+The engine includes headless unit tests built using `unittest`. The test harness forces Pygame into dummy video mode (`SDL_VIDEODRIVER=dummy`) so tests execute rapidly without spawning GUI windows.
 
 Run the complete test suite:
+
+```bash
 python -m unittest discover tests
+```
 
-Test Coverage Summary
-tests/test_physics.py: Validates horizontal/vertical wall reflection vectors, box penetration resolution, and sub-stepping distance calculations.
+### Test Coverage Breakdown
+- `tests/test_physics.py`: Validates horizontal/vertical wall reflection vectors, box penetration resolution, and sub-stepping distance calculations.
+- `tests/test_gameplay.py`: Verifies armored brick health degradation, single-life decrement logic, pause freeze isolation, power-up timer expirations, and level completion triggers.
+- `tests/test_database.py`: Confirms isolated in-memory SQLite database saving, top-N sorting, mode filtering, and cumulative brick stat updates.
+- `tests/test_audio.py`: Asserts safe volume adjustments, mute toggling, and headless fallback handling when `pygame.mixer` is uninitialized.
 
-tests/test_gameplay.py: Verifies armored brick health degradation, single-life decrement logic, pause freeze isolation, power-up timer expirations, and level completion triggers.
+---
 
-tests/test_edge_cases.py: Confirms zero dt update stability, boundary clamping during paddle width expansions, and safe power-up re-application.
+## 📦 Building Standalone Executable (.exe)
 
-📦 Building Standalone Executable (.exe)
 You can package NeonBreak into a standalone Windows binary that runs on computers without Python installed using PyInstaller:
-# Generate standalone directory build
-pyinstaller --noconfirm --onedir --windowed --add-data "assets;assets" --add-data "data;data" main.py
 
-The output executable will be compiled inside dist/main/main.exe.
+```bash
+# Install development/build dependencies
+pip install -r requirements-dev.txt
+
+# Generate standalone directory build using spec file
+pyinstaller --noconfirm main.spec
+```
 
 The output executable will be compiled inside `dist/main/main.exe`.
+
+---
 
 ## 🎮 Controls Reference
 
@@ -170,4 +184,3 @@ The output executable will be compiled inside `dist/main/main.exe`.
 | **Return to Main Menu** | `ENTER` |
 | **Adjust Sound Volume** | Left / Right / Up / Down (In Settings) |
 | **Toggle Sound Mute** | `M` (In Settings) |
-

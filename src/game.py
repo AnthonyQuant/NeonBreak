@@ -1,4 +1,4 @@
-"""Main Game controller with custom Orbitron/Rajdhani typography, neon arcade visual hierarchy, audio settings, and SQLite persistence."""
+"""Main Game controller with custom Orbitron/Rajdhani typography, synthwave visual hierarchy, audio settings, energy-continuous sub-stepping, strict multiball cap enforcement, 1-click launch, active trajectory guide in Classic Mode, and SQLite persistence."""
 
 import json
 import math
@@ -10,6 +10,7 @@ from src.config import (
     SCREEN_WIDTH, SCREEN_HEIGHT, TARGET_FPS, TITLE,
     COLOR_BG, COLOR_SURFACE, COLOR_TEXT, COLOR_TEXT_DIM, COLOR_ACCENT,
     COLOR_NEON_CYAN, COLOR_ELECTRIC_PURPLE, COLOR_HOT_PINK, COLOR_SUNSET_ORANGE,
+    COLOR_GRID_LINE, COLOR_HORIZON_SUN, COLOR_SUN_GLOW,
     DATA_DIR, BALL_SPEED, FONT_HEADING_PATH, FONT_BODY_PATH
 )
 from src.paddle import Paddle
@@ -43,6 +44,7 @@ class Game:
 
         # Neon Theme Custom Typography
         self.title_font = load_game_font(FONT_HEADING_PATH, 42, bold=True, italic=True)
+        self.header_font = load_game_font(FONT_HEADING_PATH, 28, bold=True)
         self.font = load_game_font(FONT_BODY_PATH, 22, bold=True)
         self.sub_font = load_game_font(FONT_BODY_PATH, 16)
 
@@ -128,7 +130,23 @@ class Game:
                         bx = start_x + c * (brick_w + padding)
                         by = start_y + r * (brick_h + padding)
                         b_type = symbol_map[token]
-                        move_range = (start_x, start_x + cols * (brick_w + padding) - padding)
+
+                        if b_type == BrickType.MOVING:
+                            # Calculate dedicated patrol bounds based on adjacent empty slots (.)
+                            c_left = c
+                            while c_left > 0 and tokens[c_left - 1] not in symbol_map:
+                                c_left -= 1
+
+                            c_right = c
+                            while c_right < len(tokens) - 1 and tokens[c_right + 1] not in symbol_map:
+                                c_right += 1
+
+                            min_x = start_x + c_left * (brick_w + padding)
+                            max_x = start_x + c_right * (brick_w + padding) + brick_w
+                            move_range = (min_x, max_x)
+                        else:
+                            move_range = (0.0, 0.0)
+
                         bricks.append(Brick(bx, by, brick_w, brick_h, brick_type=b_type, move_range=move_range))
 
             return bricks
@@ -221,20 +239,22 @@ class Game:
                     self.show_trajectory = not self.show_trajectory
 
                 if self.state == GameState.TITLE:
-                    if event.key in (pygame.K_SPACE, pygame.K_RETURN):
+                    if event.key == pygame.K_SPACE:
+                        self.select_mode_and_start(GameMode.CLASSIC)
+                    elif event.key == pygame.K_1:
                         self.state = GameState.MODE_SELECT
-                    elif event.key == pygame.K_h:
+                    elif event.key in (pygame.K_h, pygame.K_2):
                         self.state = GameState.HIGH_SCORES
-                    elif event.key in (pygame.K_o, pygame.K_s):
+                    elif event.key in (pygame.K_s, pygame.K_o, pygame.K_3):
                         self.state = GameState.SETTINGS
 
                 elif self.state == GameState.MODE_SELECT:
-                    if event.key in (pygame.K_1, pygame.K_c):
+                    if event.key in (pygame.K_1, pygame.K_c, pygame.K_SPACE):
                         self.select_mode_and_start(GameMode.CLASSIC)
                     elif event.key in (pygame.K_2, pygame.K_p):
                         self.select_mode_and_start(GameMode.PRECISION)
-                    elif event.key == pygame.K_h:
-                        self.state = GameState.HIGH_SCORES
+                    elif event.key in (pygame.K_h, pygame.K_ESCAPE):
+                        self.state = GameState.TITLE
                     elif event.key in (pygame.K_o, pygame.K_s):
                         self.state = GameState.SETTINGS
 
@@ -331,36 +351,43 @@ class Game:
             if not b.is_destroyed and not b.is_unbreakable and b != origin_brick:
                 if blast_area.colliderect(b.rect):
                     self.particles.spawn_burst(b.rect.centerx, b.rect.centery, self._get_brick_color(b), count=16)
-                    if b.hit():
-                        self.combo_streak += 1
-                        self._add_score(100, b.rect.centerx, b.rect.centery)
+                    is_destroyed = b.hit()
+                    self.combo_streak += 1
+                    pts = 150 if is_destroyed else 50
+                    self._add_score(pts, b.rect.centerx, b.rect.centery)
+                    if is_destroyed:
                         self._on_brick_destroyed(b)
                         self._try_spawn_powerup(b)
                         if b.brick_type == BrickType.EXPLOSIVE:
                             self._trigger_explosion(b)
 
     def _spawn_multiball(self):
+        """Spawns split ball vectors while strictly enforcing an 8-ball active cap limit."""
         max_active_balls = 8
-        if len(self.balls) >= max_active_balls:
+        capacity = max_active_balls - len(self.balls)
+        if capacity <= 0:
             return
 
         new_balls = []
-        for b in self.balls:
-            if len(self.balls) + len(new_balls) >= max_active_balls:
+        for b in list(self.balls):
+            if len(new_balls) >= capacity:
                 break
 
             current_angle = math.atan2(b.vy, b.vx)
             speed = b.speed
 
+            # Add left split ball
             b_left = Ball()
             b_left.x, b_left.y = b.x, b.y
             b_left.set_angle(current_angle - math.radians(30), speed)
+            new_balls.append(b_left)
 
-            b_right = Ball()
-            b_right.x, b_right.y = b.x, b.y
-            b_right.set_angle(current_angle + math.radians(30), speed)
-
-            new_balls.extend([b_left, b_right])
+            # Add right split ball if capacity allows
+            if len(new_balls) < capacity:
+                b_right = Ball()
+                b_right.x, b_right.y = b.x, b.y
+                b_right.set_angle(current_angle + math.radians(30), speed)
+                new_balls.append(b_right)
 
         self.balls.extend(new_balls)
 
@@ -469,21 +496,26 @@ class Game:
                 if len(ball.trail_positions) > 8:
                     ball.trail_positions.pop(0)
 
+                # Track targets hit in this frame to prevent duplicate multi-hitting
+                hit_targets_this_frame = set()
+
                 for _ in range(sub_steps):
                     ball.update_step(sub_dt)
 
-                    if ball.resolve_paddle_collision(self.paddle.rect):
-                        self.combo_streak = 0
-                        self.sounds.play("paddle")
-                        self.trigger_screen_shake(duration=0.08, intensity=1.5)
-                        self.particles.spawn_burst(ball.x, self.paddle.rect.top, COLOR_NEON_CYAN, count=6, speed_max=120.0)
-                        break
+                    if "paddle" not in hit_targets_this_frame:
+                        if ball.resolve_paddle_collision(self.paddle.rect):
+                            hit_targets_this_frame.add("paddle")
+                            self.combo_streak = 0
+                            self.sounds.play("paddle")
+                            self.trigger_screen_shake(duration=0.08, intensity=1.5)
+                            self.particles.spawn_burst(ball.x, self.paddle.rect.top, COLOR_NEON_CYAN, count=6, speed_max=120.0)
 
-                    hit_brick = False
                     for brick in self.bricks:
-                        if not brick.is_destroyed:
+                        if not brick.is_destroyed and id(brick) not in hit_targets_this_frame:
                             if ball.resolve_box_collision(brick.rect):
-                                self.combo_streak += 1
+                                hit_targets_this_frame.add(id(brick))
+                                if not brick.is_unbreakable:
+                                    self.combo_streak += 1
                                 self.sounds.play("brick")
                                 self.trigger_screen_shake(duration=0.10, intensity=2.5)
                                 self.particles.spawn_burst(ball.x, ball.y, self._get_brick_color(brick), count=10)
@@ -497,10 +529,6 @@ class Game:
                                     self._try_spawn_powerup(brick)
                                     if brick.brick_type == BrickType.EXPLOSIVE:
                                         self._trigger_explosion(brick)
-                                hit_brick = True
-                                break
-                    if hit_brick:
-                        break
 
             self.balls = [b for b in self.balls if b.y - b.radius < SCREEN_HEIGHT]
 
@@ -527,9 +555,48 @@ class Game:
                         self.sounds.play("game_complete")
                         self._save_final_score()
 
+    def _draw_synthwave_background(self, surface: pygame.Surface):
+        """Draws a low-contrast procedural synthwave grid and horizon elements."""
+        surface.fill(COLOR_BG)
+
+        horizon_y = 480
+
+        # 1. Subtle Synthwave Sun on Horizon
+        sun_radius = 50
+        sun_center = (SCREEN_WIDTH // 2, horizon_y)
+
+        glow_surf = pygame.Surface((sun_radius * 2 + 30, sun_radius * 2 + 30), pygame.SRCALPHA)
+        pygame.draw.circle(glow_surf, (*COLOR_SUN_GLOW, 50), (sun_radius + 15, sun_radius + 15), sun_radius + 15)
+        surface.blit(glow_surf, (sun_center[0] - sun_radius - 15, sun_center[1] - sun_radius - 15))
+
+        sun_surf = pygame.Surface((sun_radius * 2, sun_radius * 2), pygame.SRCALPHA)
+        pygame.draw.circle(sun_surf, (*COLOR_HORIZON_SUN, 160), (sun_radius, sun_radius), sun_radius)
+        for line_y in range(12, sun_radius * 2, 8):
+            line_height = max(1, int((line_y / (sun_radius * 2)) * 3))
+            pygame.draw.rect(sun_surf, (0, 0, 0, 0), (0, line_y, sun_radius * 2, line_height))
+
+        surface.blit(sun_surf, (sun_center[0] - sun_radius, sun_center[1] - sun_radius))
+
+        # 2. Horizon Line
+        pygame.draw.line(surface, COLOR_GRID_LINE, (0, horizon_y), (SCREEN_WIDTH, horizon_y), 1)
+
+        # 3. Receding Perspective Grid Lines
+        vanishing_x = SCREEN_WIDTH // 2
+        num_v_lines = 16
+        for i in range(-num_v_lines // 2, num_v_lines // 2 + 1):
+            bottom_x = vanishing_x + i * 85
+            pygame.draw.line(surface, COLOR_GRID_LINE, (vanishing_x + i * 6, horizon_y), (bottom_x, SCREEN_HEIGHT), 1)
+
+        y = float(horizon_y)
+        spacing = 4.0
+        while y < SCREEN_HEIGHT:
+            pygame.draw.line(surface, COLOR_GRID_LINE, (0, int(y)), (SCREEN_WIDTH, int(y)), 1)
+            y += spacing
+            spacing *= 1.25
+
     def _draw_trajectory_line(self, surface: pygame.Surface):
         if self.balls and self.show_trajectory:
-            points = self.balls[0].get_predicted_trajectory()
+            points = self.balls[0].get_predicted_trajectory(self.bricks, self.paddle.rect)
             if len(points) > 1:
                 for i in range(0, len(points) - 1, 3):
                     start_p = points[i]
@@ -588,22 +655,60 @@ class Game:
             s_txt = self.sub_font.render(f"SLOW: {int(self.slow_motion_timer)}s", True, COLOR_ELECTRIC_PURPLE)
             surface.blit(s_txt, (badge_x, badge_y))
 
+    def _render_title_screen(self):
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((10, 15, 46, 220))
+        self.screen.blit(overlay, (0, 0))
+
+        # Title & Sub-tagline
+        t_surf = self.title_font.render("NEONBREAK", True, COLOR_ELECTRIC_PURPLE)
+        t_rect = t_surf.get_rect(center=(SCREEN_WIDTH // 2, 130))
+        self.screen.blit(t_surf, t_rect)
+
+        sub_tag = self.sub_font.render("BREAK • BOUNCE • CONQUER", True, COLOR_NEON_CYAN)
+        s_rect = sub_tag.get_rect(center=(SCREEN_WIDTH // 2, 175))
+        self.screen.blit(sub_tag, s_rect)
+
+        # Styled Selection Cards
+        card_w, card_h = 440, 56
+        cards = [
+            ("[SPACE] QUICK START", "Launch Classic Mode Directly", COLOR_NEON_CYAN, 240),
+            ("[1] MODE SELECT", "Choose Classic or Precision Mode", COLOR_ELECTRIC_PURPLE, 315),
+            ("[2] HIGH SCORES", "View Leaderboards & Lifetime Stats", COLOR_HOT_PINK, 390),
+            ("[3] AUDIO SETTINGS", "Configure Volume & Sound Controls", COLOR_SUNSET_ORANGE, 465),
+        ]
+
+        for title, desc, color, y_pos in cards:
+            c_rect = pygame.Rect(SCREEN_WIDTH // 2 - card_w // 2, y_pos, card_w, card_h)
+            pygame.draw.rect(self.screen, COLOR_SURFACE, c_rect, border_radius=8)
+            pygame.draw.rect(self.screen, color, c_rect, 2, border_radius=8)
+
+            t_txt = self.font.render(title, True, color)
+            d_txt = self.sub_font.render(desc, True, COLOR_TEXT)
+            self.screen.blit(t_txt, (c_rect.x + 20, c_rect.y + 8))
+            self.screen.blit(d_txt, (c_rect.x + 20, c_rect.y + 32))
+
+        # Footer Prompts
+        prompt = self.sub_font.render("Press SPACE for Quick Start | Press 1, 2, or 3 to Navigate", True, COLOR_TEXT_DIM)
+        p_rect = prompt.get_rect(center=(SCREEN_WIDTH // 2, 545))
+        self.screen.blit(prompt, p_rect)
+
     def _render_mode_select(self):
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((10, 15, 46, 235))
         self.screen.blit(overlay, (0, 0))
 
-        t_surf = self.title_font.render("SELECT GAME MODE", True, COLOR_ELECTRIC_PURPLE)
+        t_surf = self.header_font.render("SELECT GAME MODE", True, COLOR_ELECTRIC_PURPLE)
         t_rect = t_surf.get_rect(center=(SCREEN_WIDTH // 2, 140))
         self.screen.blit(t_surf, t_rect)
 
         c_title = self.font.render("[1] CLASSIC MODE", True, COLOR_NEON_CYAN)
-        c_desc = self.sub_font.render("• 3 Lives  • Trajectory Guide (T key)  • Standard Scoring", True, COLOR_TEXT)
+        c_desc = self.sub_font.render("• 3 Lives  • Directional Preview (T key)  • Standard Scoring", True, COLOR_TEXT)
         self.screen.blit(c_title, (SCREEN_WIDTH // 2 - 200, 230))
         self.screen.blit(c_desc, (SCREEN_WIDTH // 2 - 200, 260))
 
         p_title = self.font.render("[2] PRECISION MODE", True, COLOR_HOT_PINK)
-        p_desc = self.sub_font.render("• 1 Life Only  • Trajectory Guide Off  • 1.5x Multiplier", True, COLOR_TEXT)
+        p_desc = self.sub_font.render("• 1 Life Only  • Directional Preview Off  • 1.5x Multiplier", True, COLOR_TEXT)
         self.screen.blit(p_title, (SCREEN_WIDTH // 2 - 200, 330))
         self.screen.blit(p_desc, (SCREEN_WIDTH // 2 - 200, 360))
 
@@ -619,7 +724,7 @@ class Game:
         overlay.fill((10, 15, 46, 240))
         self.screen.blit(overlay, (0, 0))
 
-        t_surf = self.title_font.render("AUDIO SETTINGS", True, COLOR_ELECTRIC_PURPLE)
+        t_surf = self.header_font.render("AUDIO SETTINGS", True, COLOR_ELECTRIC_PURPLE)
         t_rect = t_surf.get_rect(center=(SCREEN_WIDTH // 2, 120))
         self.screen.blit(t_surf, t_rect)
 
@@ -656,7 +761,7 @@ class Game:
         overlay.fill((10, 15, 46, 240))
         self.screen.blit(overlay, (0, 0))
 
-        t_surf = self.title_font.render("HIGH SCORES", True, COLOR_ELECTRIC_PURPLE)
+        t_surf = self.header_font.render("HIGH SCORES", True, COLOR_ELECTRIC_PURPLE)
         t_rect = t_surf.get_rect(center=(SCREEN_WIDTH // 2, 80))
         self.screen.blit(t_surf, t_rect)
 
@@ -698,7 +803,7 @@ class Game:
         overlay.fill((10, 15, 46, 210))
         self.screen.blit(overlay, (0, 0))
 
-        t_surf = self.title_font.render(title, True, title_color)
+        t_surf = self.header_font.render(title, True, title_color)
         t_rect = t_surf.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 30))
         self.screen.blit(t_surf, t_rect)
 
@@ -707,9 +812,10 @@ class Game:
         self.screen.blit(s_surf, s_rect)
 
     def _render(self):
-        self.game_surface.fill(COLOR_BG)
+        self._draw_synthwave_background(self.game_surface)
 
-        if self.show_trajectory and self.state in (GameState.READY, GameState.PLAYING):
+        # Draw trajectory guide in Classic Mode when enabled (both READY and PLAYING)
+        if self.show_trajectory and self.mode == GameMode.CLASSIC and self.state in (GameState.READY, GameState.PLAYING):
             self._draw_trajectory_line(self.game_surface)
 
         for brick in self.bricks:
@@ -733,7 +839,7 @@ class Game:
         self.screen.blit(self.game_surface, (int(self.shake_offset_x), int(self.shake_offset_y)))
 
         if self.state == GameState.TITLE:
-            self._render_overlay("NEONBREAK", "Press SPACE for Mode Select | Press H for High Scores | Press S for Settings", COLOR_ELECTRIC_PURPLE)
+            self._render_title_screen()
 
         elif self.state == GameState.MODE_SELECT:
             self._render_mode_select()

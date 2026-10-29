@@ -1,4 +1,4 @@
-"""Automated unit tests for core physics, wall reflections, and anti-tunneling collision logic."""
+"""Automated unit tests for core physics, wall reflections, anti-tunneling collision logic, and moving brick boundary constraints."""
 
 import os
 import unittest
@@ -10,6 +10,7 @@ import pygame
 pygame.init()
 
 from src.ball import Ball
+from src.brick import Brick, BrickType
 from src.config import SCREEN_WIDTH, SCREEN_HEIGHT
 
 
@@ -63,6 +64,40 @@ class TestBallPhysics(unittest.TestCase):
 
         self.assertGreater(substeps, 1, "High-speed movement must require multiple sub-steps.")
         self.assertLessEqual(max_dist_per_step, 4.0, "Distance per sub-step must not exceed max_step_distance.")
+
+    def test_high_speed_ball_thin_box_collision_detection(self):
+        """Simulates a high-speed ball moving toward a thin target box to verify anti-tunneling collision detection."""
+        thin_box = pygame.FRect(300.0, 200.0, 80.0, 4.0)
+
+        # Position ball above thin box, traveling downward at high speed
+        self.ball.x = 340.0
+        self.ball.y = 150.0
+        self.ball.vx = 0.0
+        self.ball.vy = 2500.0
+
+        dt = 0.05  # Large frame step that would tunnel without sub-stepping
+        substeps = self.ball.get_substep_count(dt, max_step_distance=4.0)
+        sub_dt = dt / substeps
+
+        hit = False
+        for _ in range(substeps):
+            self.ball.update_step(sub_dt)
+            if self.ball.resolve_box_collision(thin_box):
+                hit = True
+                break
+
+        self.assertTrue(hit, "High-speed ball substepping must detect collision with thin target box without tunneling.")
+        self.assertLessEqual(self.ball.vy, 0, "Vertical velocity must be reversed upon colliding with thin box.")
+
+    def test_moving_brick_boundary_and_non_overlapping_bounds(self):
+        """Verifies moving bricks stay within their designated patrol range boundaries."""
+        move_range = (200.0, 400.0)
+        brick = Brick(250.0, 100.0, width=80.0, height=24.0, brick_type=BrickType.MOVING, move_range=move_range)
+
+        for _ in range(500):
+            brick.update(0.016)
+            self.assertGreaterEqual(brick.rect.left, move_range[0] - 0.01, "Moving brick left boundary must not be breached.")
+            self.assertLessEqual(brick.rect.right, move_range[1] + 0.01, "Moving brick right boundary must not be breached.")
 
 
 if __name__ == "__main__":

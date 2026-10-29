@@ -63,7 +63,21 @@ class Particle:
 
 
 class FloatingText:
-    """Animated text pop-up that rises upward and fades out using custom Neon fonts."""
+    """Animated text pop-up that rises upward and fades out using pre-rendered surfaces and cached fonts."""
+
+    _font_cache: dict[int, pygame.font.Font] = {}
+
+    @classmethod
+    def _get_font(cls, font_size: int) -> pygame.font.Font:
+        if font_size not in cls._font_cache:
+            if FONT_BODY_PATH and pygame.font.get_init():
+                try:
+                    cls._font_cache[font_size] = pygame.font.Font(FONT_BODY_PATH, font_size)
+                except Exception:
+                    cls._font_cache[font_size] = pygame.font.SysFont("Rajdhani", font_size, bold=True)
+            else:
+                cls._font_cache[font_size] = pygame.font.SysFont("Segoe UI", font_size, bold=True)
+        return cls._font_cache[font_size]
 
     def __init__(
         self,
@@ -83,13 +97,8 @@ class FloatingText:
         self.vy = -45.0  # Drift upward
         self.is_dead = False
 
-        if FONT_BODY_PATH and pygame.font.get_init():
-            try:
-                self.font = pygame.font.Font(FONT_BODY_PATH, font_size)
-            except Exception:
-                self.font = pygame.font.SysFont("Rajdhani", font_size, bold=True)
-        else:
-            self.font = pygame.font.SysFont("Segoe UI", font_size, bold=True)
+        font = self._get_font(font_size)
+        self.base_surf = font.render(self.text, True, self.color)
 
     def update(self, dt: float):
         if dt <= 0.0:
@@ -109,10 +118,9 @@ class FloatingText:
         alpha_ratio = max(0.0, self.lifetime / self.max_lifetime)
         alpha = int(255 * alpha_ratio)
 
-        text_surf = self.font.render(self.text, True, self.color)
-        text_surf.set_alpha(alpha)
-        rect = text_surf.get_rect(center=(int(self.x), int(self.y)))
-        surface.blit(text_surf, rect)
+        self.base_surf.set_alpha(alpha)
+        rect = self.base_surf.get_rect(center=(int(self.x), int(self.y)))
+        surface.blit(self.base_surf, rect)
 
 
 class ParticleManager:

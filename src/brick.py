@@ -64,6 +64,10 @@ class Brick:
     def update(self, dt: float):
         """Updates position for moving bricks patrolling between min_x and max_x."""
         if self.is_moving and not self.is_destroyed:
+            # Prevent movement if range is insufficient for brick width
+            if self.max_x <= self.min_x or (self.max_x - self.min_x) <= self.width:
+                return
+
             self.x += self.move_dir * self.move_speed * dt
             if self.x <= self.min_x:
                 self.x = self.min_x

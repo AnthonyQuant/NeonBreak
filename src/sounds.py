@@ -15,18 +15,23 @@ class SoundManager:
         self.volume = 1.0
         self.music_volume = 0.6
         self.muted = False
+        self.sounds: dict[str, pygame.mixer.Sound] = {}
 
         try:
-            if not pygame.mixer.get_init():
-                pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
-            self.enabled = True
+            if hasattr(pygame, "mixer") and pygame.mixer is not None:
+                if not pygame.mixer.get_init():
+                    pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
+                self.enabled = True
         except Exception:
             self.enabled = False
 
-        self.sounds: dict[str, pygame.mixer.Sound] = {}
         if self.enabled:
-            self._generate_synth_sounds()
-            self.set_volume(self.volume)
+            try:
+                self._generate_synth_sounds()
+                self.set_volume(self.volume)
+            except Exception as e:
+                print(f"Warning: Failed to generate synth sounds ({e}). Disabling audio engine.")
+                self.enabled = False
 
     def _generate_wav_bytes(self, samples: list[float], sample_rate: int = 22050) -> bytes:
         """Encodes raw float audio samples (-1.0 to 1.0) into 16-bit mono WAV binary data."""
@@ -136,15 +141,28 @@ class SoundManager:
         self.sounds["game_over"] = pygame.mixer.Sound(io.BytesIO(self._generate_wav_bytes(go_samples)))
 
     def set_volume(self, val: float):
-        """Sets global sound effect and background music volume (0.0 to 1.0)."""
-        self.volume = max(0.0, min(1.0, val))
+        """Sets global sound effect and background music volume (0.0 to 1.0) with safe fallback."""
+        try:
+            self.volume = max(0.0, min(1.0, float(val)))
+        except (ValueError, TypeError):
+            self.volume = 1.0
+
+        if not self.enabled:
+            return
+
         eff_vol = 0.0 if self.muted else self.volume
 
         for snd in self.sounds.values():
-            snd.set_volume(eff_vol)
+            try:
+                snd.set_volume(eff_vol)
+            except Exception:
+                pass
 
-        if pygame.mixer.music.get_busy() or self.muted:
-            pygame.mixer.music.set_volume(eff_vol * self.music_volume)
+        try:
+            if hasattr(pygame, "mixer") and pygame.mixer is not None and pygame.mixer.get_init():
+                pygame.mixer.music.set_volume(eff_vol * self.music_volume)
+        except Exception:
+            pass
 
     def toggle_mute(self):
         """Toggles audio mute state across both sound effects and music."""
@@ -159,13 +177,15 @@ class SoundManager:
         music_path = os.path.join(ASSETS_DIR, "audio", filename)
         if os.path.exists(music_path):
             try:
-                pygame.mixer.music.load(music_path)
-                pygame.mixer.music.set_volume(0.0 if self.muted else self.volume * self.music_volume)
-                pygame.mixer.music.play(-1)
+                if hasattr(pygame, "mixer") and pygame.mixer is not None and pygame.mixer.get_init():
+                    pygame.mixer.music.load(music_path)
+                    pygame.mixer.music.set_volume(0.0 if self.muted else self.volume * self.music_volume)
+                    pygame.mixer.music.play(-1)
             except Exception as e:
                 print(f"Warning: Could not play background music ({e})")
 
     def play(self, name: str):
+        """Triggers audio playback for registered sound key safely."""
         if self.enabled and not self.muted and name in self.sounds:
             try:
                 self.sounds[name].play()

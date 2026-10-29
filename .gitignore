@@ -1,11 +1,31 @@
-cat << 'EOF' > .gitignore
+# Python Virtual Environments
 .venv/
 venv/
+ENV/
+env/
+
+# Python Cache & Compiled Artifacts
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+
+# PyInstaller & Build Outputs
 build/
 dist/
+*.manifest
 *.spec
+
+# Local SQLite Databases & User Data
+*.db
+*.sqlite3
+data/records.db
+
+# IDE & Editor Settings
 .idea/
 .vscode/
-EOF
+*.swp
+*.swo
+
+# OS Generated Files
+.DS_Store
+Thumbs.db

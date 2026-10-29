@@ -1,0 +1,13 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Exclude build, virtual environment, and IDE artifacts from release source archives (ZIPs)
+.venv/ export-ignore
+venv/ export-ignore
+build/ export-ignore
+dist/ export-ignore
+.idea/ export-ignore
+.vscode/ export-ignore
+.gitignore export-ignore
+.gitattributes export-ignore
+*.db export-ignore

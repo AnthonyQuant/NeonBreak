@@ -7,9 +7,9 @@
     "brick_height": 24.0,
     "padding": 10.0,
     "grid": [
-      "S S A A M A A S S",
+      "S S A . M . A S S",
       "A S S E S E S S A",
-      "S S E S M S E S S",
+      "S S E . M . E S S",
       "S S S S S S S S S"
     ]
   },
@@ -21,7 +21,7 @@
     "brick_height": 24.0,
     "padding": 10.0,
     "grid": [
-      "U A A A M A A A U",
+      "U A A . M . A A U",
       "A S S E S E S S A",
       "A S A A A A A S A",
       "S S S S S S S S S"
@@ -35,9 +35,9 @@
     "brick_height": 24.0,
     "padding": 10.0,
     "grid": [
-      "U U A E M E A U U",
+      "U U A . M . A U U",
       "A A S A A A S A A",
-      "E S M S E S M S E",
+      "E . M . E . M . E",
       "A A A A A A A A A"
     ]
   }

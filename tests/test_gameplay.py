@@ -1,4 +1,4 @@
-"""Automated unit tests for gameplay lifecycle, brick durability, state transitions, and power-up expirations."""
+"""Automated unit tests for gameplay lifecycle, brick durability, state transitions, power-up expirations, audio fallback safety, and multiball cap limits."""
 
 import os
 import unittest
@@ -94,6 +94,34 @@ class TestGameplayLifecycle(unittest.TestCase):
         self.assertEqual(self.game.score, 0, "Score must reset to 0.")
         self.assertEqual(self.game.combo_streak, 0, "Combo streak must reset to 0.")
         self.assertEqual(self.game.lives, 3, "Lives must reset to mode default (3 for Classic).")
+
+    def test_audio_disabled_state_controls(self):
+        """Verifies volume adjustments and mute toggles complete safely when mixer is disabled or uninitialized."""
+        self.game.sounds.enabled = False
+
+        try:
+            self.game.sounds.set_volume(0.5)
+            self.assertEqual(self.game.sounds.volume, 0.5, "Volume attribute should update even when mixer is disabled.")
+
+            self.game.sounds.toggle_mute()
+            self.assertTrue(self.game.sounds.muted, "Mute toggle should flip state safely when mixer is disabled.")
+
+            self.game.sounds.toggle_mute()
+            self.assertFalse(self.game.sounds.muted, "Mute toggle should flip back safely when mixer is disabled.")
+        except Exception as e:
+            self.fail(f"Audio controls raised an unexpected exception when mixer was disabled: {e}")
+
+    def test_multiball_cap_limit_maximum_eight_balls(self):
+        """Ensures repeated multiball power-up triggers never produce more than 8 active balls."""
+        self.game.balls = [Ball()]
+        self.assertEqual(len(self.game.balls), 1)
+
+        # Trigger multiball repeatedly
+        for _ in range(10):
+            self.game._spawn_multiball()
+
+        self.assertLessEqual(len(self.game.balls), 8, "Multiball must never exceed the 8-ball cap limit.")
+        self.assertEqual(len(self.game.balls), 8, "Repeated multiball triggers must cap exactly at 8 balls.")
 
 
 if __name__ == "__main__":

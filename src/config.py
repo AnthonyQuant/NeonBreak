@@ -30,6 +30,11 @@ COLOR_ELECTRIC_PURPLE = (176, 38, 255) # #B026FF - Armored Bricks
 COLOR_HOT_PINK = (255, 45, 149)        # #FF2D95 - Explosive Bricks & Laser
 COLOR_SUNSET_ORANGE = (255, 159, 28)    # #FF9F1C - Power-ups & Combo Text
 
+# Background Synthwave Palette (Low Contrast for Playability)
+COLOR_GRID_LINE = (32, 24, 64)         # Dim synthwave grid lines
+COLOR_HORIZON_SUN = (70, 22, 55)       # Dim synthwave horizon sun
+COLOR_SUN_GLOW = (45, 15, 40)          # Soft horizon ambient glow
+
 # Core Game Element Colors
 COLOR_PADDLE = COLOR_NEON_CYAN
 COLOR_BALL = COLOR_HOT_PINK
